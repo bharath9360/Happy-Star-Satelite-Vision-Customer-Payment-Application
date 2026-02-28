@@ -1,0 +1,19 @@
+[build]
+  base      = "frontend"
+  command   = "npm run build"
+  publish   = "frontend/dist"
+
+[build.environment]
+  NODE_VERSION = "18"
+
+# React Router SPA — all routes served by index.html
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200
+
+# Optional: add cache headers for static assets
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

@@ -1,10 +1,15 @@
 [build]
-  base      = "frontend"
-  command   = "npm run build"
-  publish   = "frontend/dist"
+  base    = "frontend"
+  command = "npm run build"
+  publish = "dist"
 
 [build.environment]
   NODE_VERSION = "18"
+  # Tell Netlify secrets scanner these VITE_ vars are intentionally public.
+  # VITE_ prefix means they are compiled into the JS bundle by design (Vite docs).
+  # VITE_BACKEND_URL  → public API URL, not a secret
+  # VITE_RAZORPAY_KEY_ID → Razorpay publishable key (public by Razorpay design)
+  SECRETS_SCAN_OMIT_KEYS = "VITE_BACKEND_URL,VITE_RAZORPAY_KEY_ID"
 
 # React Router SPA — all routes served by index.html
 [[redirects]]
@@ -12,7 +17,7 @@
   to     = "/index.html"
   status = 200
 
-# Optional: add cache headers for static assets
+# Long-term cache for Vite hashed assets
 [[headers]]
   for = "/assets/*"
   [headers.values]

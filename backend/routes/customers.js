@@ -149,6 +149,7 @@ router.post('/bulk', async (req, res) => {
     }
 
     const results = { inserted: 0, updated: 0, skipped: 0, errors: [] };
+    const validRecords = [];
 
     for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
@@ -159,7 +160,7 @@ router.post('/bulk', async (req, res) => {
 
         if (!stb || !name || !mobile || !village) {
             results.skipped++;
-            results.errors.push({ row: i + 1, stb: stb || '(empty)', reason: 'Missing required fields (stb_number, name, mobile, village)' });
+            results.errors.push({ row: i + 1, stb: stb || '(empty)', reason: 'Missing required fields' });
             continue;
         }
 
@@ -175,20 +176,28 @@ router.post('/bulk', async (req, res) => {
             status: ['active', 'inactive'].includes((row.status || '').toLowerCase()) ? row.status.toLowerCase() : 'active',
         };
 
-        const { error } = await supabase
-            .from('customers')
-            .upsert([record], { onConflict: 'stb_number', ignoreDuplicates: false });
+        validRecords.push(record);
+    }
 
-        if (error) {
-            results.skipped++;
-            results.errors.push({ row: i + 1, stb, reason: error.message });
-        } else {
-            results.inserted++;
+    if (validRecords.length > 0) {
+        try {
+            const { error } = await supabase
+                .from('customers')
+                .upsert(validRecords, { onConflict: 'stb_number', ignoreDuplicates: false });
+
+            if (error) {
+                console.error('Bulk upsert error:', error);
+                return res.status(500).json({ error: 'Bulk insert failed: ' + error.message });
+            }
+            results.inserted = validRecords.length;
+        } catch (err) {
+            console.error('Bulk upsert exception:', err);
+            return res.status(500).json({ error: 'An unexpected error occurred during bulk insert.' });
         }
     }
 
     res.status(200).json({
-        message: `Bulk insert complete. ${results.inserted} upserted, ${results.skipped} skipped.`,
+        message: `Bulk insert complete. ${results.inserted} processed, ${results.skipped} skipped.`,
         ...results,
     });
 });

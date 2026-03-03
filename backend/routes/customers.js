@@ -181,13 +181,18 @@ router.post('/bulk', async (req, res) => {
 
     if (validRecords.length > 0) {
         try {
-            const { error } = await supabase
-                .from('customers')
-                .upsert(validRecords, { onConflict: 'stb_number', ignoreDuplicates: false });
+            // Chunk into batches of 100 to prevent Supabase or Vercel function timeout errors
+            const chunkSize = 100;
+            for (let i = 0; i < validRecords.length; i += chunkSize) {
+                const chunk = validRecords.slice(i, i + chunkSize);
+                const { error } = await supabase
+                    .from('customers')
+                    .upsert(chunk, { onConflict: 'stb_number', ignoreDuplicates: false });
 
-            if (error) {
-                console.error('Bulk upsert error:', error);
-                return res.status(500).json({ error: 'Bulk insert failed: ' + error.message });
+                if (error) {
+                    console.error('Bulk upsert chunk error:', error);
+                    return res.status(500).json({ error: 'Bulk insert failed on a chunk: ' + error.message });
+                }
             }
             results.inserted = validRecords.length;
         } catch (err) {

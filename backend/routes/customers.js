@@ -149,7 +149,7 @@ router.post('/bulk', async (req, res) => {
     }
 
     const results = { inserted: 0, updated: 0, skipped: 0, errors: [] };
-    const validRecords = [];
+    const validRecordsMap = new Map();
 
     for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
@@ -158,9 +158,15 @@ router.post('/bulk', async (req, res) => {
         const mobile = (row.mobile || '').toString().trim();
         const village = (row.village || '').toString().trim();
 
-        if (!stb || !name || !mobile || !village) {
+        // Skip completely empty rows or rows without STB number without treating them as errors
+        if (!stb) {
             results.skipped++;
-            results.errors.push({ row: i + 1, stb: stb || '(empty)', reason: 'Missing required fields' });
+            continue;
+        }
+
+        if (!name || !mobile || !village) {
+            results.skipped++;
+            results.errors.push({ row: i + 1, stb: stb, reason: 'Missing name, mobile, or village' });
             continue;
         }
 
@@ -176,8 +182,15 @@ router.post('/bulk', async (req, res) => {
             status: ['active', 'inactive'].includes((row.status || '').toLowerCase()) ? row.status.toLowerCase() : 'active',
         };
 
-        validRecords.push(record);
+        if (validRecordsMap.has(stb)) {
+            results.skipped++;
+            results.errors.push({ row: i + 1, stb: stb, reason: 'Duplicate STB number in sheet (skipped)' });
+            continue;
+        }
+        validRecordsMap.set(stb, record);
     }
+
+    const validRecords = Array.from(validRecordsMap.values());
 
     if (validRecords.length > 0) {
         try {

@@ -48,6 +48,7 @@ const AdminNavbar = () => {
                             { path: '/admin/stats', icon: '📈', label: 'Statistics' },
                             { path: '/admin/settings', icon: '⚙️', label: 'Settings' },
                             { path: '/admin/legal', icon: '⚖️', label: 'Legal & CMS' },
+                            { path: '/admin/enquiries', icon: '📨', label: 'Enquiries' },
                         ].map(({ path, icon, label }) => (
                             <li className="nav-item" key={path}>
                                 <Link

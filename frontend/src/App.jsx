@@ -20,6 +20,7 @@ import FAQ from './pages/legal/FAQ';
 import Security from './pages/legal/Security';
 // Admin – extended
 import LegalAdmin from './pages/admin/LegalAdmin';
+import Enquiries from './pages/admin/Enquiries';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap/dist/js/bootstrap.bundle.min.js';
 import './index.css';
@@ -51,6 +52,7 @@ function App() {
         <Route path="/admin/stats" element={<PrivateRoute><PaymentStats /></PrivateRoute>} />
         <Route path="/admin/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
         <Route path="/admin/legal" element={<PrivateRoute><LegalAdmin /></PrivateRoute>} />
+        <Route path="/admin/enquiries" element={<PrivateRoute><Enquiries /></PrivateRoute>} />
 
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />

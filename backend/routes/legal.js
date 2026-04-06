@@ -1,17 +1,7 @@
 const express = require('express');
 const router  = express.Router();
-const nodemailer = require('nodemailer');
 const supabase = require('../config/supabase');
 const auth = require('../middleware/auth');
-
-// ── Nodemailer transporter (Gmail / SMTP) ─────────────────────────────────────
-const createTransporter = () => nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-    },
-});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PAGE CONTENT
@@ -185,59 +175,64 @@ router.put('/contact', auth, async (req, res) => {
     }
 });
 
-// PUBLIC: POST /api/contact/enquiry  — send email via Nodemailer
+// PUBLIC: POST /api/contact/enquiry  — handle enquiry
 router.post('/contact/enquiry', async (req, res) => {
     const { name, phone, query } = req.body;
     if (!name || !phone || !query) {
         return res.status(400).json({ error: 'name, phone, and query are required.' });
     }
 
-    // Always return success to user; email is best-effort
-    res.json({ message: 'Your enquiry has been received. We will contact you shortly.' });
+    try {
+        const { error } = await supabase.from('customer_enquiries').insert([{ name, phone, query }]);
+        if (error) throw error;
+        res.json({ message: 'Your enquiry has been received. We will contact you shortly.' });
+        console.log(`[Legal] Enquiry received from ${name} (${phone})`);
+    } catch (err) {
+        console.error('[Legal] POST enquiry error:', err.message);
+        res.status(500).json({ error: 'Failed to submit enquiry. Please try again later.' });
+    }
+});
 
-    // Send email asynchronously
-    const emailUser = process.env.EMAIL_USER;
-    const emailPass = process.env.EMAIL_PASS;
-    if (!emailUser || !emailPass || emailUser.includes('your-email')) {
-        console.warn('[Legal] Email not configured — skipping send. Set EMAIL_USER and EMAIL_PASS in .env');
-        return;
+// ADMIN: GET /api/contact/enquiries — fetch all enquiries
+router.get('/contact/enquiries', auth, async (req, res) => {
+    try {
+        const { data, error } = await supabase
+            .from('customer_enquiries')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        res.json(data || []);
+    } catch (err) {
+        console.error('[Legal] GET enquiries error:', err.message);
+        res.status(500).json({ error: 'Failed to fetch enquiries.' });
+    }
+});
+
+// ADMIN: PUT /api/contact/enquiry/:id — toggle enquiry status
+router.put('/contact/enquiry/:id', auth, async (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    const { status } = req.body; // expected: 'read' or 'unread'
+    
+    if (!status || !['read', 'unread'].includes(status)) {
+        return res.status(400).json({ error: 'Invalid status.' });
     }
 
     try {
-        const transporter = createTransporter();
-        await transporter.sendMail({
-            from: `"Happy Star Enquiry" <${emailUser}>`,
-            to: emailUser,
-            replyTo: `${name} <${emailUser}>`,
-            subject: `📩 New Website Enquiry from ${name}`,
-            html: `
-            <div style="font-family: Arial, sans-serif; max-width: 540px; margin: 0 auto; background: #f9f9f9; padding: 24px; border-radius: 8px;">
-              <h2 style="color: #e94560; margin-bottom: 4px;">📡 Happy Star Satellite Vision</h2>
-              <p style="color: #666; font-size: 13px; margin-bottom: 24px;">New Customer Enquiry</p>
-              <table style="width: 100%; border-collapse: collapse;">
-                <tr>
-                  <td style="padding: 10px; background: #fff; border: 1px solid #eee; font-weight: bold; width: 130px;">👤 Name</td>
-                  <td style="padding: 10px; background: #fff; border: 1px solid #eee;">${name}</td>
-                </tr>
-                <tr>
-                  <td style="padding: 10px; background: #fff; border: 1px solid #eee; font-weight: bold;">📞 Phone</td>
-                  <td style="padding: 10px; background: #fff; border: 1px solid #eee;">${phone}</td>
-                </tr>
-                <tr>
-                  <td style="padding: 10px; background: #fff; border: 1px solid #eee; font-weight: bold;">💬 Query</td>
-                  <td style="padding: 10px; background: #fff; border: 1px solid #eee;">${query}</td>
-                </tr>
-                <tr>
-                  <td style="padding: 10px; background: #fff; border: 1px solid #eee; font-weight: bold;">🕐 Time</td>
-                  <td style="padding: 10px; background: #fff; border: 1px solid #eee;">${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST</td>
-                </tr>
-              </table>
-              <p style="color: #999; font-size: 12px; margin-top: 20px;">This email was sent from the Contact Us form on the Happy Star Satellite Vision website.</p>
-            </div>`,
-        });
-        console.log(`[Legal] Enquiry email sent for ${name} (${phone})`);
-    } catch (mailErr) {
-        console.error('[Legal] Nodemailer error:', mailErr.message);
+        const { data, error } = await supabase
+            .from('customer_enquiries')
+            .update({ status })
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (error) throw error;
+        if (!data) return res.status(404).json({ error: 'Enquiry not found.' });
+        
+        res.json({ message: 'Enquiry status updated.', data });
+    } catch (err) {
+        console.error('[Legal] PUT enquiry error:', err.message);
+        res.status(500).json({ error: 'Failed to update enquiry.' });
     }
 });
 

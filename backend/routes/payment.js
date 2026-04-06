@@ -50,24 +50,34 @@ router.post('/create-order', async (req, res) => {
 
 // POST /api/payment/verify
 router.post('/verify', async (req, res) => {
+    // ── 🛡️ SECURITY GUARD: Reject any attempt to send customer-modifying fields ──
+    if ('name' in req.body || 'village' in req.body) {
+        console.warn('[Payment] 403 — attempt to send customer data in payment request:', {
+            ip: req.ip,
+            stb: req.body.stb_number,
+            sentFields: Object.keys(req.body).filter(k => ['name', 'village'].includes(k)),
+        });
+        return res.status(403).json({
+            error: 'Forbidden. Customer data cannot be modified through the payment flow.',
+        });
+    }
+
     const {
         razorpay_order_id,
         razorpay_payment_id,
         razorpay_signature,
-        // Customer details
         stb_number,
-        name,
-        mobile,
-        village,
-        street,
-        has_amplifier,
-        alternate_mobile,
-        full_address,
         amount_paid,
         months_recharged,
+        paid_by_name,   // Optional: payer's name (stored in transactions only)
+        paid_by_phone,  // Optional: payer's mobile number
     } = req.body;
 
-    // ── 1. Verify Razorpay signature ──────────────────────────
+    if (!stb_number || !amount_paid || !months_recharged) {
+        return res.status(400).json({ error: 'stb_number, amount_paid, and months_recharged are required.' });
+    }
+
+    // ── 1. Verify Razorpay signature ──────────────────────────────────────────
     const body = razorpay_order_id + '|' + razorpay_payment_id;
     const expectedSignature = crypto
         .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
@@ -79,24 +89,29 @@ router.post('/verify', async (req, res) => {
     }
 
     try {
-        // ── 2. Upsert customer FIRST (FK constraint: customer must exist before transaction) ──
-        const { error: custError } = await supabase
+        // ── 2. READ-ONLY customer lookup — verify customer exists and is active ──
+        // We NEVER write to the customers table from the payment flow.
+        const { data: customer, error: custError } = await supabase
             .from('customers')
-            .upsert([{
-                stb_number,
-                name,
-                mobile,
-                village,
-                street: street || null,
-                has_amplifier: has_amplifier || false,
-                alternate_mobile: alternate_mobile || null,
-                full_address: full_address || null,
-                status: 'active',
-            }], { onConflict: 'stb_number' });
+            .select('stb_number, name, mobile, village, status')
+            .eq('stb_number', stb_number)
+            .maybeSingle();
 
         if (custError) throw custError;
 
-        // ── 3. Insert transaction (customer now exists, FK satisfied) ─────────
+        if (!customer) {
+            return res.status(404).json({
+                error: `STB number ${stb_number} not found. Please contact the office.`,
+            });
+        }
+
+        if (customer.status !== 'active') {
+            return res.status(403).json({
+                error: `STB ${stb_number} is inactive. Please contact the office before paying.`,
+            });
+        }
+
+        // ── 3. Insert transaction ONLY — customers table is NOT touched ────────
         const { data: transaction, error: txError } = await supabase
             .from('transactions')
             .insert([{
@@ -105,17 +120,19 @@ router.post('/verify', async (req, res) => {
                 months_recharged,
                 payment_id: razorpay_payment_id,
                 payment_status: 'success',
+                paid_by_name: paid_by_name || null,
+                paid_by_phone: paid_by_phone || null,
             }])
             .select()
             .single();
 
         if (txError) throw txError;
 
-        // ── 4. Send SMS notification ──────────────────────────────────────────
+        // ── 4. Send SMS using admin-controlled customer data (never user input) ─
         const smsMessage =
-            `Dear ${name}, your cable TV subscription for STB #${stb_number} has been recharged for ${months_recharged} month(s). Amount: Rs.${amount_paid}. Payment ID: ${razorpay_payment_id}. Thank you! - Happy Star Satellite Vision`;
+            `Dear ${customer.name}, your cable TV subscription for STB #${stb_number} has been recharged for ${months_recharged} month(s). Amount: Rs.${amount_paid}. Payment ID: ${razorpay_payment_id}. Thank you! - Happy Star Satellite Vision`;
 
-        await sendSms(mobile, smsMessage);
+        await sendSms(customer.mobile, smsMessage);
 
         res.json({
             success: true,

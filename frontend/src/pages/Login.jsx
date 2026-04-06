@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 
@@ -8,15 +8,37 @@ const Login = () => {
     const [error, setError] = useState(null);
     const navigate = useNavigate();
 
+    // If already logged in, redirect straight to admin
+    useEffect(() => {
+        const token = localStorage.getItem('adminToken');
+        if (!token) return;
+        api.get('/api/auth/me')
+            .then(() => navigate('/admin', { replace: true }))
+            .catch(() => localStorage.removeItem('adminToken')); // stale token → clear it
+    }, [navigate]);
+
     const handleChange = (e) => setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError(null);
+
+        // Build an explicit, sanitized payload:
+        // - trim username (accidental leading/trailing spaces cause lookup failures)
+        // - NEVER trim/alter the password (bcrypt hash is case- and space-sensitive)
+        const username = form.username.trim();
+        const password = form.password; // raw value — no mutation
+
+        if (!username || !password) {
+            setError('Username and password are required.');
+            return;
+        }
+
         setLoading(true);
         try {
-            const { data } = await api.post('/api/auth/login', form);
+            const { data } = await api.post('/api/auth/login', { username, password });
             localStorage.setItem('adminToken', data.token);
+            localStorage.setItem('adminUsername', data.username);
             navigate('/admin');
         } catch (err) {
             setError(err.response?.data?.error || 'Login failed. Check credentials.');

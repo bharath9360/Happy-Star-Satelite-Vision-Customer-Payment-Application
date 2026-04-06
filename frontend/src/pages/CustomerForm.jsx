@@ -1,9 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import api from '../api/axios';
-import { VILLAGE_PRICES, OFFERS, AMPLIFIER_DISCOUNT } from '../constants/pricing';
+import { OFFERS, AMPLIFIER_DISCOUNT } from '../constants/pricing';
 
 // ── Static fallbacks (used if API fails) ─────────────────────────────────────
-const FALLBACK_VILLAGES = Object.entries(VILLAGE_PRICES).map(([name, price]) => ({ name, price }));
 const FALLBACK_OFFERS = OFFERS;
 const FALLBACK_DISCOUNT = AMPLIFIER_DISCOUNT;
 const FALLBACK_META = {
@@ -17,40 +16,54 @@ const FALLBACK_META = {
 const CustomerForm = () => {
     // ── Settings (loaded from API) ───────────────────────────────────────────
     const [configLoading, setConfigLoading] = useState(true);
-    const [villages, setVillages] = useState(FALLBACK_VILLAGES);
     const [offers, setOffers] = useState(FALLBACK_OFFERS);
     const [amplifierDiscount, setAmplifierDiscount] = useState(FALLBACK_DISCOUNT);
     const [formMeta, setFormMeta] = useState(FALLBACK_META);
 
+    // Village→price map from settings (needed to look up fetched village price)
+    const [villagePriceMap, setVillagePriceMap] = useState({});
+
     useEffect(() => {
         api.get('/api/settings')
             .then(({ data }) => {
-                if (data.villages?.length) setVillages(data.villages);
                 if (data.offers?.length) setOffers(data.offers);
                 if (data.amplifierDiscount !== undefined) setAmplifierDiscount(data.amplifierDiscount);
                 if (data.formMeta) setFormMeta({ ...FALLBACK_META, ...data.formMeta });
+                if (data.villages?.length) {
+                    const map = Object.fromEntries(data.villages.map(v => [v.name, v.price]));
+                    setVillagePriceMap(map);
+                }
             })
             .catch(() => { /* silently fallback to defaults */ })
             .finally(() => setConfigLoading(false));
     }, []);
 
+    // ── Form state — only editable by user fields ────────────────────────────
     const [form, setForm] = useState({
-        name: '', stb_number: '', mobile: '',
-        village: '', street: '',
-        has_amplifier: false, alternate_mobile: '', full_address: '',
+        stb_number: '',
+        mobile: '',
+        has_amplifier: false,
+        alternate_mobile: '',
+        full_address: '',
     });
+
+    // ── Customer data — fetched from backend, never edited by user ───────────
+    const [customer, setCustomer] = useState({
+        name: '',
+        village: '',
+    });
+
     const [selectedOffer, setSelectedOffer] = useState(0);
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(null);
     const [error, setError] = useState(null);
 
     // STB validation state — status: 'idle' | 'checking' | 'valid' | 'invalid'
-    const [stbCheck, setStbCheck] = useState({ status: 'idle', message: '', customerName: '' });
+    const [stbCheck, setStbCheck] = useState({ status: 'idle', message: '' });
     const stbDebounceRef = useRef(null);
 
-    const villageNames = villages.map(v => v.name);
-    const villagePriceMap = Object.fromEntries(villages.map(v => [v.name, v.price]));
-    const basePrice = villagePriceMap[form.village] || 0;
+    // ── Derived pricing — always based on admin-set village, never user input ─
+    const basePrice = villagePriceMap[customer.village] || 0;
     const offer = offers[selectedOffer] || offers[0] || { multiplier: 1, months: 1, freeMonths: 0, label: '1 Month' };
     const rawTotal = basePrice * offer.multiplier;
     const totalPrice = form.has_amplifier && basePrice > 0 ? rawTotal - amplifierDiscount : rawTotal;
@@ -59,24 +72,33 @@ const CustomerForm = () => {
         const { name, value, type, checked } = e.target;
         const newVal = type === 'checkbox' ? checked : value;
         setForm(prev => ({ ...prev, [name]: newVal }));
-        // Reset STB validation when the user edits the STB field
+
+        // Reset STB validation when user edits the STB field
         if (name === 'stb_number') {
-            setStbCheck({ status: 'idle', message: '', customerName: '' });
+            setStbCheck({ status: 'idle', message: '' });
+            setCustomer({ name: '', village: '' });
             clearTimeout(stbDebounceRef.current);
         }
     };
 
-    // Called onBlur of STB input — hits the public /check endpoint
+    // ── Called onBlur of STB input — hits the public /check endpoint ─────────
     const validateStb = async () => {
         const stb = form.stb_number.trim();
         if (!stb) return;
-        setStbCheck({ status: 'checking', message: 'Verifying STB number...', customerName: '' });
+        setStbCheck({ status: 'checking', message: 'Verifying Box ID...' });
+        setCustomer({ name: '', village: '' });
         try {
             const { data } = await api.get(`/api/customers/check/${encodeURIComponent(stb)}`);
-            setStbCheck({ status: 'valid', message: `✅ Registered to: ${data.name} (${data.village})`, customerName: data.name });
+            // Auto-fill customer details from admin-controlled DB — user cannot edit these
+            setCustomer({ name: data.name, village: data.village });
+            setStbCheck({
+                status: 'valid',
+                message: `✅ Customer found: ${data.name} — ${data.village}`,
+            });
         } catch (err) {
-            const msg = err.response?.data?.error || 'STB number not found. Please contact the office.';
-            setStbCheck({ status: 'invalid', message: `❌ ${msg}`, customerName: '' });
+            const msg = err.response?.data?.error || 'Box ID not found. Please contact the office.';
+            setStbCheck({ status: 'invalid', message: `❌ ${msg}` });
+            setCustomer({ name: '', village: '' });
         }
     };
 
@@ -93,14 +115,14 @@ const CustomerForm = () => {
         e.preventDefault();
         setError(null);
 
-        if (!form.name || !form.stb_number || !form.mobile || !form.village) {
+        if (!form.stb_number || !form.mobile) {
             setError('Please fill in all required fields.');
             return;
         }
 
         // Block payment if STB hasn't been validated yet
         if (stbCheck.status === 'idle' || stbCheck.status === 'checking') {
-            setError('Please wait — verifying your STB number.');
+            setError('Please wait — verifying your Box ID.');
             await validateStb();
             return;
         }
@@ -114,7 +136,7 @@ const CustomerForm = () => {
             return;
         }
         if (totalPrice <= 0) {
-            setError('Please select a valid village to get the price.');
+            setError('Could not determine the plan amount for this Box ID. Please contact the office.');
             return;
         }
 
@@ -136,25 +158,22 @@ const CustomerForm = () => {
                 description: `${offer.label} Cable TV Subscription`,
                 order_id: order.orderId,
                 prefill: {
-                    name: form.name,
+                    name: customer.name,
                     contact: form.mobile,
-                    // Pre-filling email is optional but helps UPI collect flow
                     email: '',
                 },
                 theme: { color: '#e94560' },
 
                 // ── UPI Configuration ──────────────────────────────────────────
-                // Enables UPI as the PRIMARY payment method in the checkout modal.
-                // Shows UPI apps (GPay, PhonePe, Paytm, BHIM) first, then QR, then VPA.
                 config: {
                     display: {
                         blocks: {
                             upi_block: {
                                 name: 'Pay via UPI',
                                 instruments: [
-                                    { method: 'upi', flows: ['intent'] },   // UPI apps (GPay, PhonePe, Paytm, BHIM)
-                                    { method: 'upi', flows: ['qr'] },        // Scan QR code
-                                    { method: 'upi', flows: ['collect'] },   // Enter UPI ID / VPA
+                                    { method: 'upi', flows: ['intent'] },
+                                    { method: 'upi', flows: ['qr'] },
+                                    { method: 'upi', flows: ['collect'] },
                                 ],
                             },
                             other_block: {
@@ -174,14 +193,22 @@ const CustomerForm = () => {
 
                 handler: async (response) => {
                     try {
+                        // ✅ SAFE: Only send transaction fields — NO name/village to prevent customer overwrite
                         const { data } = await api.post('/api/payment/verify', {
-                            ...response,
-                            ...form,
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_signature: response.razorpay_signature,
+                            stb_number: form.stb_number,
                             amount_paid: totalPrice,
                             months_recharged: offer.months,
+                            paid_by_phone: form.mobile,       // stored in transactions only
+                            paid_by_name: customer.name,      // stored in transactions only (from DB)
+                            // ❌ NO: name, village, street, has_amplifier, alternate_mobile, full_address
                         });
                         setSuccess({ paymentId: response.razorpay_payment_id, amount: totalPrice, months: offer.months });
-                        setForm({ name: '', stb_number: '', mobile: '', village: '', street: '', has_amplifier: false, alternate_mobile: '', full_address: '' });
+                        setForm({ stb_number: '', mobile: '', has_amplifier: false, alternate_mobile: '', full_address: '' });
+                        setCustomer({ name: '', village: '' });
+                        setStbCheck({ status: 'idle', message: '' });
                         setSelectedOffer(0);
                     } catch (err) {
                         setError(err.response?.data?.error || 'Payment recorded failed. Contact support.');
@@ -195,6 +222,14 @@ const CustomerForm = () => {
             setError(err.response?.data?.error || 'Failed to initiate payment.');
             setLoading(false);
         }
+    };
+
+    // ── Shared style for readonly customer fields ─────────────────────────────
+    const readonlyStyle = {
+        background: 'rgba(40,224,126,0.05)',
+        border: '1px solid rgba(40,224,126,0.25)',
+        color: '#c0f0d5',
+        cursor: 'not-allowed',
     };
 
     return (
@@ -236,71 +271,100 @@ const CustomerForm = () => {
 
                 <div className="glass-card p-4">
                     <form onSubmit={handlePay}>
-                        {/* Personal Info */}
+
+                        {/* ── STEP 1: Box ID input ────────────────────────────────── */}
                         <div className="mb-3">
-                            <label className="form-label">Full Name *</label>
-                            <input className="form-control" name="name" value={form.name} onChange={handleChange} placeholder="Enter your full name" required />
-                        </div>
-
-                        <div className="row g-3 mb-3">
-                            <div className="col-6">
-                                <label className="form-label">STB / Box Number *</label>
-                                <input
-                                    className="form-control"
-                                    name="stb_number"
-                                    value={form.stb_number}
-                                    onChange={handleChange}
-                                    onBlur={validateStb}
-                                    placeholder="e.g. STB001234"
-                                    required
-                                    style={{
-                                        borderColor: stbCheck.status === 'valid' ? 'rgba(40,224,126,0.6)'
-                                            : stbCheck.status === 'invalid' ? 'rgba(233,69,96,0.6)'
-                                                : undefined,
-                                    }}
-                                />
-                                {/* STB check status badge */}
-                                {stbCheck.status !== 'idle' && (
-                                    <div style={{
-                                        marginTop: 5,
-                                        fontSize: '0.78rem',
-                                        color: stbCheck.status === 'valid' ? '#28e07e'
-                                            : stbCheck.status === 'invalid' ? '#e94560'
-                                                : '#f5a623',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: 5,
-                                    }}>
-                                        {stbCheck.status === 'checking' && (
-                                            <span className="spinner-border spinner-border-sm" style={{ width: 10, height: 10 }} />
-                                        )}
-                                        {stbCheck.message}
-                                    </div>
-                                )}
-                            </div>
-                            <div className="col-6">
-                                <label className="form-label">Mobile Number *</label>
-                                <input className="form-control" name="mobile" value={form.mobile} onChange={handleChange} placeholder="10-digit mobile" maxLength={10} required />
-                            </div>
-                        </div>
-
-                        <div className="row g-3 mb-3">
-                            <div className="col-6">
-                                <label className="form-label">Village / City *</label>
-                                <select className="form-select" name="village" value={form.village} onChange={handleChange} required>
-                                    <option value="">Select village...</option>
-                                    {villageNames.map(v => <option key={v} value={v}>{v}</option>)}
-                                </select>
-                            </div>
-                            {formMeta.showStreetField && (
-                                <div className="col-6">
-                                    <label className="form-label">Street</label>
-                                    <input className="form-control" name="street" value={form.street} onChange={handleChange} placeholder="Street / Area" />
+                            <label className="form-label">Box / STB Number *</label>
+                            <input
+                                className="form-control"
+                                name="stb_number"
+                                value={form.stb_number}
+                                onChange={handleChange}
+                                onBlur={validateStb}
+                                placeholder="Enter your Box / STB number"
+                                required
+                                style={{
+                                    borderColor: stbCheck.status === 'valid' ? 'rgba(40,224,126,0.6)'
+                                        : stbCheck.status === 'invalid' ? 'rgba(233,69,96,0.6)'
+                                            : undefined,
+                                }}
+                            />
+                            {/* STB status badge */}
+                            {stbCheck.status !== 'idle' && (
+                                <div style={{
+                                    marginTop: 6,
+                                    fontSize: '0.78rem',
+                                    color: stbCheck.status === 'valid' ? '#28e07e'
+                                        : stbCheck.status === 'invalid' ? '#e94560'
+                                            : '#f5a623',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 5,
+                                }}>
+                                    {stbCheck.status === 'checking' && (
+                                        <span className="spinner-border spinner-border-sm" style={{ width: 10, height: 10 }} />
+                                    )}
+                                    {stbCheck.message}
                                 </div>
                             )}
                         </div>
 
-                        {/* Amplifier Checkbox */}
+                        {/* ── STEP 2: Auto-filled customer info (readonly) ─────────── */}
+                        {stbCheck.status === 'valid' && (
+                            <div className="mb-3 fade-in-up glass-card p-3" style={{ borderRadius: 10, border: '1px solid rgba(40,224,126,0.2)' }}>
+                                <div style={{ fontSize: '0.72rem', color: '#28e07e', fontWeight: 600, marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                                    🔒 Customer Details (Admin Controlled — Read Only)
+                                </div>
+                                <div className="row g-2">
+                                    <div className="col-6">
+                                        <label className="form-label" style={{ fontSize: '0.8rem' }}>Customer Name</label>
+                                        <input
+                                            className="form-control"
+                                            value={customer.name}
+                                            readOnly
+                                            disabled
+                                            style={readonlyStyle}
+                                        />
+                                    </div>
+                                    <div className="col-6">
+                                        <label className="form-label" style={{ fontSize: '0.8rem' }}>Village / Area</label>
+                                        <input
+                                            className="form-control"
+                                            value={customer.village}
+                                            readOnly
+                                            disabled
+                                            style={readonlyStyle}
+                                        />
+                                    </div>
+                                </div>
+                                {basePrice > 0 && (
+                                    <div style={{ marginTop: 8, fontSize: '0.78rem', color: '#8890a6' }}>
+                                        📋 Plan rate for {customer.village}: <strong style={{ color: '#f5a623' }}>₹{basePrice}/month</strong>
+                                    </div>
+                                )}
+                                {basePrice === 0 && (
+                                    <div style={{ marginTop: 8, fontSize: '0.78rem', color: '#e94560' }}>
+                                        ⚠️ Village pricing not configured. Contact the office.
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* ── Mobile Number ───────────────────────────────────────── */}
+                        <div className="mb-3">
+                            <label className="form-label">Mobile Number *</label>
+                            <input
+                                className="form-control"
+                                name="mobile"
+                                value={form.mobile}
+                                onChange={handleChange}
+                                placeholder="10-digit mobile number"
+                                maxLength={10}
+                                required
+                            />
+                        </div>
+
+                        {/* ── Amplifier Checkbox ──────────────────────────────────── */}
                         <div className="mb-3 glass-card p-3" style={{ borderRadius: 10 }}>
                             <div className="form-check">
                                 <input className="form-check-input" type="checkbox" id="has_amplifier" name="has_amplifier" checked={form.has_amplifier} onChange={handleChange} />
@@ -325,8 +389,8 @@ const CustomerForm = () => {
                             )}
                         </div>
 
-                        {/* Offer Selection */}
-                        {form.village && (
+                        {/* ── Offer Selection (shown once village/price is known) ──── */}
+                        {stbCheck.status === 'valid' && basePrice > 0 && (
                             <div className="mb-4 fade-in-up">
                                 <label className="form-label mb-2">Select Subscription Plan</label>
                                 <div className="d-flex gap-2">
@@ -344,11 +408,11 @@ const CustomerForm = () => {
                             </div>
                         )}
 
-                        {/* Price Summary */}
-                        {form.village && (
+                        {/* ── Price Summary ───────────────────────────────────────── */}
+                        {stbCheck.status === 'valid' && basePrice > 0 && (
                             <div className="glass-card p-3 mb-4 fade-in-up" style={{ borderRadius: 10 }}>
                                 <div className="d-flex justify-content-between align-items-center">
-                                    <span style={{ color: '#8890a6', fontSize: '0.9rem' }}>Base price ({form.village})</span>
+                                    <span style={{ color: '#8890a6', fontSize: '0.9rem' }}>Base price ({customer.village})</span>
                                     <span>₹{basePrice}/month</span>
                                 </div>
                                 <div className="d-flex justify-content-between align-items-center mt-1">
@@ -369,23 +433,25 @@ const CustomerForm = () => {
                             </div>
                         )}
 
-                        {/* Pay Button */}
+                        {/* ── Pay Button ──────────────────────────────────────────── */}
                         <button
                             type="submit"
                             className="btn-primary-custom w-100 d-flex align-items-center justify-content-center gap-2"
-                            disabled={loading || !form.village || stbCheck.status === 'invalid' || stbCheck.status === 'checking'}
+                            disabled={loading || stbCheck.status === 'invalid' || stbCheck.status === 'checking' || (stbCheck.status === 'valid' && basePrice === 0)}
                         >
                             {loading ? (
                                 <><span className="spinner-border spinner-border-sm" /> Processing...</>
                             ) : stbCheck.status === 'checking' ? (
-                                <><span className="spinner-border spinner-border-sm" /> Verifying STB...</>
+                                <><span className="spinner-border spinner-border-sm" /> Verifying Box ID...</>
+                            ) : stbCheck.status !== 'valid' ? (
+                                <>🔍 Enter Box ID to continue</>
                             ) : (
                                 <>💳 Pay ₹{totalPrice || '0'} Now</>
                             )}
                         </button>
                         {stbCheck.status === 'invalid' && (
                             <p style={{ color: '#e94560', fontSize: '0.78rem', textAlign: 'center', marginTop: 6, marginBottom: 0 }}>
-                                ⚠️ Payment blocked — STB number not recognised. Contact the office.
+                                ⚠️ Payment blocked — Box ID not recognised. Contact the office.
                             </p>
                         )}
                     </form>
@@ -541,4 +607,3 @@ const CustomerForm = () => {
 };
 
 export default CustomerForm;
-

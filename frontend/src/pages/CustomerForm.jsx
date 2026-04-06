@@ -198,8 +198,14 @@ const CustomerForm = () => {
     };
 
     return (
-        <div className="payment-page">
-            <div className="payment-card fade-in-up">
+        <div style={{
+            minHeight: '100vh',
+            background: 'linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+        }}>
+            <div className="payment-card fade-in-up" style={{ padding: '2rem 1rem', width: '100%', maxWidth: 520 }}>
                 {/* Header */}
                 <div className="text-center mb-4">
                     <div style={{ fontSize: 48, marginBottom: 8 }}>📡</div>
@@ -389,8 +395,150 @@ const CustomerForm = () => {
                     Secured by Razorpay 🔒 | Support: {formMeta.supportPhone}
                 </p>
             </div>
+
+            {/* ── Site Footer ──────────────────────────────────────────── */}
+            <footer style={{
+                width: '100%',
+                marginTop: '3rem',
+                background: 'rgba(15,15,26,0.95)',
+                borderTop: '1px solid rgba(30,45,80,0.7)',
+                backdropFilter: 'blur(10px)',
+            }}>
+                {/* ── Main footer grid ─────────────────────────────────── */}
+                <div style={{ maxWidth: 960, margin: '0 auto', padding: '2.5rem 1.5rem 1.5rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '2rem', marginBottom: '2rem' }}>
+
+                        {/* Column 1 – Brand */}
+                        <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                                <div style={{
+                                    width: 34, height: 34,
+                                    background: 'linear-gradient(135deg, #e94560, #f5a623)',
+                                    borderRadius: 8, display: 'flex', alignItems: 'center',
+                                    justifyContent: 'center', fontSize: 16, flexShrink: 0,
+                                }}>📡</div>
+                                <div>
+                                    <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#e8e8f0' }}>Happy Star Satellite Vision</div>
+                                    <div style={{ fontSize: '0.62rem', color: '#8890a6', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Cable TV Billing Platform</div>
+                                </div>
+                            </div>
+                            <p style={{ color: '#8890a6', fontSize: '0.78rem', lineHeight: 1.65, marginBottom: 0 }}>
+                                Trusted cable TV subscription management for thousands of customers across Tamil Nadu.
+                            </p>
+                        </div>
+
+                        {/* Column 2 – Legal & Support links */}
+                        <div>
+                            <p style={{ color: '#e8e8f0', fontWeight: 700, fontSize: '0.82rem', marginBottom: 12, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                                Legal &amp; Support
+                            </p>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                {[
+                                    { href: '/privacy-policy', label: '🔒 Privacy Policy' },
+                                    { href: '/terms',          label: '📜 Terms & Conditions' },
+                                    { href: '/refund-policy',  label: '💰 Refund Policy' },
+                                    { href: '/about',          label: '📘 About Us' },
+                                    { href: '/faq',            label: '❓ FAQ' },
+                                    { href: '/security',       label: '🔐 Security' },
+                                    { href: '/contact',        label: '📞 Contact Us' },
+                                ].map(({ href, label }) => (
+                                    <a key={href} href={href}
+                                        style={{ color: '#8890a6', fontSize: '0.8rem', textDecoration: 'none', transition: 'color 0.2s' }}
+                                        onMouseEnter={e => e.target.style.color = '#f5a623'}
+                                        onMouseLeave={e => e.target.style.color = '#8890a6'}
+                                    >{label}</a>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Column 3 – Quick Contact */}
+                        <div>
+                            <p style={{ color: '#e8e8f0', fontWeight: 700, fontSize: '0.82rem', marginBottom: 12, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                                Quick Contact
+                            </p>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                <a href="tel:9751775472" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
+                                    <span style={{ width: 28, height: 28, background: 'rgba(233,69,96,0.15)', border: '1px solid rgba(233,69,96,0.3)', borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, flexShrink: 0 }}>📞</span>
+                                    <div>
+                                        <div style={{ fontSize: '0.7rem', color: '#8890a6' }}>Cable Enquiry</div>
+                                        <div style={{ fontSize: '0.82rem', color: '#e94560', fontWeight: 600 }}>9751775472</div>
+                                    </div>
+                                </a>
+                                <a href="tel:9360294463" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
+                                    <span style={{ width: 28, height: 28, background: 'rgba(79,172,254,0.15)', border: '1px solid rgba(79,172,254,0.3)', borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, flexShrink: 0 }}>💻</span>
+                                    <div>
+                                        <div style={{ fontSize: '0.7rem', color: '#8890a6' }}>Website Enquiry</div>
+                                        <div style={{ fontSize: '0.82rem', color: '#4facfe', fontWeight: 600 }}>9360294463</div>
+                                    </div>
+                                </a>
+                                <a href="mailto:happystar88793@gmail.com" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
+                                    <span style={{ width: 28, height: 28, background: 'rgba(233,69,96,0.15)', border: '1px solid rgba(233,69,96,0.3)', borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, flexShrink: 0 }}>✉️</span>
+                                    <div>
+                                        <div style={{ fontSize: '0.7rem', color: '#8890a6' }}>Cable Email</div>
+                                        <div style={{ fontSize: '0.72rem', color: '#e94560', fontWeight: 600, wordBreak: 'break-all' }}>happystar88793@gmail.com</div>
+                                    </div>
+                                </a>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <span style={{ width: 28, height: 28, background: 'rgba(245,166,35,0.15)', border: '1px solid rgba(245,166,35,0.3)', borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, flexShrink: 0 }}>🕐</span>
+                                    <div>
+                                        <div style={{ fontSize: '0.7rem', color: '#8890a6' }}>Working Hours</div>
+                                        <div style={{ fontSize: '0.82rem', color: '#f5a623', fontWeight: 600 }}>10 AM – 6 PM, Mon–Sat</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* ── Divider ──────────────────────────────────────── */}
+                    <div style={{ borderTop: '1px solid rgba(30,45,80,0.6)', paddingTop: '1.5rem' }}>
+
+                        {/* Developer branding */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                <img
+                                    src="https://res.cloudinary.com/dnby5o1lt/image/upload/v1753957805/bharath_profisnal_pic_inutoj.png"
+                                    alt="Bharath K"
+                                    style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', border: '2px solid rgba(233,69,96,0.4)', flexShrink: 0 }}
+                                    onError={e => { e.target.style.display = 'none'; }}
+                                />
+                                <div>
+                                    <div style={{
+                                        fontWeight: 800, fontSize: '0.88rem',
+                                        background: 'linear-gradient(135deg, #e94560, #f5a623)',
+                                        WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+                                    }}>
+                                        Designed &amp; Developed by Bharath K
+                                    </div>
+                                    <div style={{ color: '#8890a6', fontSize: '0.73rem' }}>
+                                        For website or software development, contact me
+                                    </div>
+                                    <a
+                                        href="mailto:bharathkkbharath3@gmail.com"
+                                        style={{ color: '#4facfe', fontSize: '0.73rem', fontWeight: 600, textDecoration: 'none' }}
+                                    >
+                                        bharathkkbharath3@gmail.com
+                                    </a>
+                                </div>
+                            </div>
+
+                            {/* Copyright + Razorpay badge */}
+                            <div style={{ textAlign: 'right' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end', marginBottom: 4 }}>
+                                    <span style={{ fontSize: '0.72rem', padding: '3px 10px', borderRadius: 20, background: 'rgba(40,224,126,0.1)', color: '#28e07e', border: '1px solid rgba(40,224,126,0.25)', fontWeight: 600 }}>
+                                        🔒 Secured by Razorpay
+                                    </span>
+                                </div>
+                                <p style={{ color: '#8890a6', fontSize: '0.7rem', margin: 0 }}>
+                                    © 2025 Happy Star Satellite Vision. All rights reserved.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </footer>
         </div>
     );
 };
 
 export default CustomerForm;
+

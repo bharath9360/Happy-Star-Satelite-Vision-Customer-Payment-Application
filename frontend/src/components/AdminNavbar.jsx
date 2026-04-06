@@ -1,12 +1,23 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import api from '../api/axios';
 
 const AdminNavbar = () => {
     const navigate = useNavigate();
     const location = useLocation();
 
-    const handleLogout = () => {
-        localStorage.removeItem('adminToken');
-        navigate('/login');
+    // Read username stored at login time
+    const username = localStorage.getItem('adminUsername') || 'Admin';
+
+    const handleLogout = async () => {
+        try {
+            await api.post('/api/auth/logout');
+        } catch {
+            // Logout is best-effort — clear locally regardless
+        } finally {
+            localStorage.removeItem('adminToken');
+            localStorage.removeItem('adminUsername');
+            navigate('/login');
+        }
     };
 
     const isActive = (path) => location.pathname === path ? 'active' : '';
@@ -36,6 +47,7 @@ const AdminNavbar = () => {
                             { path: '/admin/payments', icon: '💳', label: 'Payments' },
                             { path: '/admin/stats', icon: '📈', label: 'Statistics' },
                             { path: '/admin/settings', icon: '⚙️', label: 'Settings' },
+                            { path: '/admin/legal', icon: '⚖️', label: 'Legal & CMS' },
                         ].map(({ path, icon, label }) => (
                             <li className="nav-item" key={path}>
                                 <Link
@@ -49,13 +61,30 @@ const AdminNavbar = () => {
                         ))}
                     </ul>
 
-                    <button
-                        className="btn btn-sm px-3 py-2 rounded-3"
-                        onClick={handleLogout}
-                        style={{ background: 'rgba(233,69,96,0.2)', color: '#e94560', border: '1px solid rgba(233,69,96,0.4)', fontWeight: 600 }}
-                    >
-                        🚪 Logout
-                    </button>
+                    {/* Right side: username badge + logout */}
+                    <div className="d-flex align-items-center gap-2">
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            background: 'rgba(255,255,255,0.07)',
+                            border: '1px solid rgba(255,255,255,0.12)',
+                            borderRadius: 8,
+                            padding: '6px 12px',
+                            fontSize: '0.8rem',
+                            color: '#c8cfe0',
+                        }}>
+                            <span>👤</span>
+                            <span style={{ fontWeight: 600 }}>{username}</span>
+                        </div>
+                        <button
+                            className="btn btn-sm px-3 py-2 rounded-3"
+                            onClick={handleLogout}
+                            style={{ background: 'rgba(233,69,96,0.2)', color: '#e94560', border: '1px solid rgba(233,69,96,0.4)', fontWeight: 600 }}
+                        >
+                            🚪 Logout
+                        </button>
+                    </div>
                 </div>
             </div>
         </nav>

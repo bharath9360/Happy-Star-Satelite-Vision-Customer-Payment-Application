@@ -7,6 +7,7 @@ const paymentRoutes = require('./routes/payment');
 const customerRoutes = require('./routes/customers');
 const transactionRoutes = require('./routes/transactions');
 const settingsRoutes = require('./routes/settings');
+const legalRoutes = require('./routes/legal');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -46,6 +47,7 @@ app.use('/api/payment', paymentRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api', legalRoutes); // Legal, FAQ, Contact, Site Settings
 
 // ── 404 Handler ─────────────────────────────────────────────────────────────
 app.use((req, res) => {
@@ -59,8 +61,10 @@ app.use((err, req, res, next) => {
 });
 
 // ── Start Server ─────────────────────────────────────────────────────────────
-app.listen(PORT, () => {
-    console.log(`🚀 Server running on http://localhost:${PORT}`);
-});
+if (process.env.NODE_ENV !== 'test') {
+    app.listen(PORT, () => {
+        console.log(`🚀 Server running on http://localhost:${PORT}`);
+    });
+}
 
 module.exports = app; // Needed for Vercel serverless

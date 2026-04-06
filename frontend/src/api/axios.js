@@ -19,6 +19,10 @@ const PUBLIC_PREFIXES = [
     '/api/settings',           // Settings read (public GET)
     '/api/payment/',           // Payment endpoints (public)
     '/api/auth/',              // Auth endpoints (login etc.)
+    '/api/page/',              // Legal page content (public)
+    '/api/faq',                // FAQ list (public)
+    '/api/contact',            // Contact info + enquiry (public)
+    '/api/site-settings/',     // Logo (public)
 ];
 
 const isPublicUrl = (url = '') =>
